@@ -44,11 +44,14 @@
  * @chan_40bit_mask: channels implementing the BCM2711 40-bit register layout
  * @periph_offset: offset at which channels with extended addressing see the
  *	legacy 0x7c000000 - 0x7fffffff peripheral window
+ * @ext_addr: legacy layout channels carry address bits [39:32] in the STRIDE
+ *	field and control block pointers are stored right-shifted by 5
  */
 struct bcm2835_dma_cfg {
 	u64 dma_mask;
 	u32 chan_40bit_mask;
 	u64 periph_offset;
+	bool ext_addr;
 };
 
 /**
@@ -212,6 +215,10 @@ struct bcm2835_desc {
 #define MAX_DMA_LEN SZ_1G
 #define MAX_LITE_DMA_LEN (SZ_64K - 4)
 
+/* BCM2712 legacy layout channels: address bits [39:32] in the STRIDE field */
+#define BCM2712_DMA_STRIDE_SRC_HI	GENMASK(7, 0)
+#define BCM2712_DMA_STRIDE_DST_HI	GENMASK(15, 8)
+
 /* Legacy peripheral bus window used by DMA clients for FIFO addresses */
 #define BCM2835_DMA_PERIPH_BASE		0x7c000000
 #define BCM2835_DMA_PERIPH_END		0x80000000
@@ -269,6 +276,13 @@ static const struct bcm2835_dma_cfg bcm2711_dma_cfg = {
 	.dma_mask = DMA_BIT_MASK(36),
 	.chan_40bit_mask = GENMASK(14, 11),
 	.periph_offset = 0x400000000ULL,
+};
+
+static const struct bcm2835_dma_cfg bcm2712_dma_cfg = {
+	.dma_mask = DMA_BIT_MASK(40),
+	.chan_40bit_mask = GENMASK(11, 6),
+	.periph_offset = 0x1000000000ULL,
+	.ext_addr = true,
 };
 
 static inline size_t bcm2835_dma_max_frame_length(struct bcm2835_chan *c)
@@ -349,6 +363,9 @@ static void bcm2835_dma_cb_set_src(struct bcm2835_chan *c,
 	}
 
 	e->cb->src = lower_32_bits(addr);
+	if (c->ext_addr)
+		FIELD_MODIFY(BCM2712_DMA_STRIDE_SRC_HI, &e->cb->stride,
+			     upper_32_bits(addr));
 }
 
 static void bcm2835_dma_cb_set_dst(struct bcm2835_chan *c,
@@ -362,6 +379,9 @@ static void bcm2835_dma_cb_set_dst(struct bcm2835_chan *c,
 	}
 
 	e->cb->dst = lower_32_bits(addr);
+	if (c->ext_addr)
+		FIELD_MODIFY(BCM2712_DMA_STRIDE_DST_HI, &e->cb->stride,
+			     upper_32_bits(addr));
 }
 
 static void bcm2835_dma_cb_init(struct bcm2835_chan *c,
@@ -1133,7 +1153,7 @@ static int bcm2835_dma_chan_init(struct bcm2835_dmadev *d, int chan_id,
 		 BCM2835_DMA_DEBUG_LITE)
 		c->is_lite_channel = true;
 
-	c->ext_addr = c->is_40bit_channel;
+	c->ext_addr = c->is_40bit_channel || d->cfg->ext_addr;
 	if (c->ext_addr)
 		c->periph_offset = d->cfg->periph_offset;
 
@@ -1157,6 +1177,7 @@ static void bcm2835_dma_free(struct bcm2835_dmadev *od)
 static const struct of_device_id bcm2835_dma_of_match[] = {
 	{ .compatible = "brcm,bcm2835-dma", .data = &bcm2835_dma_cfg },
 	{ .compatible = "brcm,bcm2711-dma", .data = &bcm2711_dma_cfg },
+	{ .compatible = "brcm,bcm2712-dma", .data = &bcm2712_dma_cfg },
 	{},
 };
 MODULE_DEVICE_TABLE(of, bcm2835_dma_of_match);
