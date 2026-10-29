@@ -46,6 +46,14 @@
 	reg = <0x7d510700 0x1c>;
 };
 
+&hdmi0 {
+	dmas = <&dma40 12>;
+};
+
+&hdmi1 {
+	dmas = <&dma40 13>;
+};
+
 &uart10 {
 	interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL_HIGH>;
 };
