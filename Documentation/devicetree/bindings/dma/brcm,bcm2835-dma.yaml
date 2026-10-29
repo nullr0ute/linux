@@ -9,18 +9,27 @@ title: BCM2835 DMA controller
 maintainers:
   - Nicolas Saenz Julienne <nsaenz@kernel.org>
 
-description:
+description: |
   The BCM2835 DMA controller has 16 channels in total. Only the lower
   13 channels have an associated IRQ. Some arbitrary channels are used by the
   VideoCore firmware (1,3,6,7 in the current firmware version). The channels
   0, 2 and 3 have special functionality and should not be used by the driver.
+
+  BCM2711 channels 11 to 14 are 40-bit capable DMA4 channels, described by a
+  separate brcm,bcm2711-dma node. BCM2712 has 40-bit addressing on all
+  channels, with channels 6 to 11 being DMA4 channels. A controller may be
+  split across several nodes, the register address identifies the first
+  channel of a node.
 
 allOf:
   - $ref: dma-controller.yaml#
 
 properties:
   compatible:
-    const: brcm,bcm2835-dma
+    enum:
+      - brcm,bcm2835-dma
+      - brcm,bcm2711-dma
+      - brcm,bcm2712-dma
 
   reg:
     maxItems: 1
@@ -97,6 +106,24 @@ examples:
                         "dma-shared-all";
         #dma-cells = <1>;
         brcm,dma-channel-mask = <0x7f35>;
+    };
+
+  - |
+    #include <dt-bindings/interrupt-controller/arm-gic.h>
+
+    dma-controller@7e007b00 {
+      compatible = "brcm,bcm2711-dma";
+      reg = <0x7e007b00 0x400>;
+      interrupts = <GIC_SPI 89 IRQ_TYPE_LEVEL_HIGH>,
+                   <GIC_SPI 90 IRQ_TYPE_LEVEL_HIGH>,
+                   <GIC_SPI 91 IRQ_TYPE_LEVEL_HIGH>,
+                   <GIC_SPI 92 IRQ_TYPE_LEVEL_HIGH>;
+      interrupt-names = "dma11",
+                        "dma12",
+                        "dma13",
+                        "dma14";
+      #dma-cells = <1>;
+      brcm,dma-channel-mask = <0x7000>;
     };
 
 ...
